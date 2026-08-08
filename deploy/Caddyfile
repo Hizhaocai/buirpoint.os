@@ -1,0 +1,24 @@
+os.buirpoint.top {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:3100 {
+        header_up Host {host}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+api.buirpoint.top {
+    # Do not proxy the Kong root route: it serves Supabase Studio. Studio stays
+    # available only through an SSH tunnel to localhost:8000.
+    @publicSupabaseApi path /auth/* /rest/* /storage/* /realtime/* /functions/* /graphql/* /pg/*
+
+    # `handle` blocks are mutually exclusive and preserve this access boundary:
+    # only the public Supabase endpoints reach Kong; Studio remains private.
+    handle @publicSupabaseApi {
+        reverse_proxy 127.0.0.1:8000
+    }
+
+    handle {
+        respond "Not found" 404
+    }
+}

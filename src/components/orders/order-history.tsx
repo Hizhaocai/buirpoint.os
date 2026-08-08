@@ -1,0 +1,10 @@
+import Link from "next/link";
+import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
+import { OrderStatusBadge, displayDate, displayPrice } from "@/components/orders/order-list";
+import type { OrderHistoryItem } from "@/types/database";
+
+export function OrderHistory({ orders, match, allOrdersHref }: { orders: OrderHistoryItem[]; match: "phone" | "name" | null; allOrdersHref?: string }) {
+  if (!orders.length) return <section className="border-t border-[var(--border)] pt-6"><h2 className="font-semibold">历史订单</h2><p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">暂无可关联的历史订单。</p></section>;
+  const matchLabel = match === "phone" ? "按联系电话匹配" : "按同名客户匹配";
+  return <section aria-labelledby="history-heading" className="border-t border-[var(--border)] pt-6"><div className="flex items-baseline justify-between gap-3"><div><h2 id="history-heading" className="font-semibold">历史订单</h2><p className="mt-1 text-sm text-[var(--muted-foreground)]">{matchLabel}</p></div>{allOrdersHref ? <Link href={allOrdersHref} className="shrink-0 text-sm font-medium text-[var(--primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">查看全部</Link> : null}</div><div className="mt-4 divide-y divide-[var(--border)]">{orders.map((order) => <Link key={order.id} href={`/orders/${order.id}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 transition-colors hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--ring)]"><div className="min-w-0"><strong className="block truncate text-sm">{order.project_name}</strong><span className="mt-1 block text-xs text-[var(--muted-foreground)]">{displayDate(order.shoot_date)} · {displayPrice(order.total_price)}</span></div><div className="flex items-center gap-2"><OrderStatusBadge status={order.status} /><ArrowRight aria-hidden size={16} className="text-[var(--muted-foreground)]" /></div></Link>)}</div></section>;
+}

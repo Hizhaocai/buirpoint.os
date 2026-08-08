@@ -1,0 +1,7 @@
+allowBuilds:
+  # Next.js uses sharp for production image optimization. Approve only this
+  # required native dependency rather than allowing arbitrary install scripts.
+  sharp: true
+  supabase: true
+ignoredBuiltDependencies:
+  - unrs-resolver

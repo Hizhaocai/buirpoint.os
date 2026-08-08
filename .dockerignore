@@ -1,0 +1,21 @@
+# Source control and local tooling
+.git
+.next
+.pnpm-store
+.tools
+node_modules
+
+# Local and production secrets must never enter a build context.
+.env
+.env.*
+!.env.example
+
+# Local Supabase state is for development only.
+supabase/.temp
+
+# Logs and operating-system files
+*.log
+.DS_Store
+
+# Deployment runtime state lives on the server, outside the application image.
+deploy/*.env
