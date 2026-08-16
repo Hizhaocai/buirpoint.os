@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(debug_assertions)]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     net::{TcpStream, ToSocketAddrs},
     process::Command,
@@ -12,10 +14,14 @@ use tauri::{
     webview::{DownloadEvent, NewWindowResponse, WebviewWindowBuilder},
     Manager, Url,
 };
+#[cfg(debug_assertions)]
+use tauri_plugin_notification::NotificationExt;
 
 const APP_HOST: &str = "os.buirpoint.top";
 const APP_URL: &str = "https://os.buirpoint.top";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(debug_assertions)]
+static NOTIFICATION_TEST_SENT: AtomicBool = AtomicBool::new(false);
 
 const CONNECTION_ERROR_HTML: &str = r#"<!doctype html>
 <html lang="zh-CN">
@@ -117,8 +123,53 @@ fn open_external_url(url: &Url) {
     }
 }
 
+#[cfg(debug_assertions)]
+fn notification_test_on_minimize() -> bool {
+    std::env::var("BUIR_NOTIFICATION_TEST_TRIGGER").as_deref() == Ok("minimize")
+}
+
+#[cfg(debug_assertions)]
+fn send_notification_test(app: &tauri::AppHandle) {
+    let notification = app.notification();
+    let permission = match notification.permission_state() {
+        Ok(tauri::plugin::PermissionState::Granted) => tauri::plugin::PermissionState::Granted,
+        Ok(tauri::plugin::PermissionState::Prompt)
+        | Ok(tauri::plugin::PermissionState::PromptWithRationale) => {
+            match notification.request_permission() {
+                Ok(permission) => permission,
+                Err(error) => {
+                    eprintln!("notification permission request failed: {error}");
+                    return;
+                }
+            }
+        }
+        Ok(tauri::plugin::PermissionState::Denied) => {
+            eprintln!("notification permission denied");
+            return;
+        }
+        Err(error) => {
+            eprintln!("notification permission check failed: {error}");
+            return;
+        }
+    };
+
+    eprintln!("notification permission state: {permission}");
+
+    if permission == tauri::plugin::PermissionState::Granted {
+        if let Err(error) = notification
+            .builder()
+            .title("BUIR Studio OS")
+            .body("桌面通知功能已启用")
+            .show()
+        {
+            eprintln!("notification test failed: {error}");
+        }
+    }
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .register_uri_scheme_protocol("buir-error", |_context, _request| {
             tauri::http::Response::builder()
                 .header(
@@ -168,9 +219,28 @@ fn main() {
                     }
                     _ => true,
                 })
+                .on_page_load(|window, payload| {
+                    #[cfg(debug_assertions)]
+                    if !notification_test_on_minimize()
+                        && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
+                        && !NOTIFICATION_TEST_SENT.swap(true, Ordering::SeqCst)
+                    {
+                        send_notification_test(window.app_handle());
+                    }
+                })
                 .build()?;
 
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            #[cfg(debug_assertions)]
+            if notification_test_on_minimize()
+                && matches!(event, tauri::WindowEvent::Resized(_))
+                && window.is_minimized().unwrap_or(false)
+                && !NOTIFICATION_TEST_SENT.swap(true, Ordering::SeqCst)
+            {
+                send_notification_test(window.app_handle());
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running BUIR Studio OS");
