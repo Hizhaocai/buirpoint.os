@@ -1,0 +1,13 @@
+{
+  "name": "buir-studio-os-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4"
+  },
+  "packageManager": "pnpm@11.19.0"
+}

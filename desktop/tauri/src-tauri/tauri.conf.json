@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BUIR Studio OS",
+  "version": "0.1.0",
+  "identifier": "top.buirpoint.os",
+  "build": {
+    "devUrl": "https://os.buirpoint.top",
+    "frontendDist": "https://os.buirpoint.top"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "BUIR Studio OS",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "maximizable": true,
+        "closable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}
