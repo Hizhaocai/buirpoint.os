@@ -3,6 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv, isSupabaseConfigured } from "@/lib/supabase/config";
 
 const publicPaths = ["/login"];
+const desktopApiPrefix = "/api/desktop";
+
+function isDesktopApiRequest(pathname: string) {
+  return pathname === desktopApiPrefix || pathname.startsWith(`${desktopApiPrefix}/`);
+}
 
 export async function updateSession(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
@@ -10,8 +15,16 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: requestHeaders } });
   const { pathname } = request.nextUrl;
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
+  const isDesktopApi = isDesktopApiRequest(pathname);
 
   if (!isSupabaseConfigured()) {
+    if (isDesktopApi) {
+      return NextResponse.json(
+        { error: "Service unavailable" },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     if (isPublicPath) {
       return response;
     }
@@ -41,6 +54,13 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user && !isPublicPath) {
+    if (isDesktopApi) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);

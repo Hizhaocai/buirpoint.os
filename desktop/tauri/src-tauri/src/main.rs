@@ -1,6 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-#[cfg(debug_assertions)]
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     net::{TcpStream, ToSocketAddrs},
@@ -14,14 +13,58 @@ use tauri::{
     webview::{DownloadEvent, NewWindowResponse, WebviewWindowBuilder},
     Manager, Url,
 };
-#[cfg(debug_assertions)]
 use tauri_plugin_notification::NotificationExt;
 
 const APP_HOST: &str = "os.buirpoint.top";
 const APP_URL: &str = "https://os.buirpoint.top";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-#[cfg(debug_assertions)]
-static NOTIFICATION_TEST_SENT: AtomicBool = AtomicBool::new(false);
+static SUMMARY_REQUEST_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
+static SUMMARY_RESOLVED: AtomicBool = AtomicBool::new(false);
+static TOMORROW_NOTIFICATION_SENT: AtomicBool = AtomicBool::new(false);
+
+const TOMORROW_SUMMARY_SCRIPT: &str = r#"
+(() => {
+  if (window.__BUIR_TOMORROW_SUMMARY_STARTED__) return;
+  window.__BUIR_TOMORROW_SUMMARY_STARTED__ = true;
+
+  const report = (state, shootCount) => {
+    const result = new URL("buir-summary://result");
+    result.searchParams.set("state", state);
+    if (Number.isInteger(shootCount)) result.searchParams.set("shootCount", String(shootCount));
+    window.location.href = result.toString();
+  };
+
+  const timeout = window.setTimeout(() => report("error"), 8000);
+  fetch("/api/desktop/tomorrow-summary", {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  })
+    .then(async (response) => {
+      window.clearTimeout(timeout);
+      if (response.status === 401 || response.status === 403) {
+        report("unauthorized");
+        return;
+      }
+      if (!response.ok) {
+        report("error");
+        return;
+      }
+
+      const payload = await response.json();
+      if (!Number.isInteger(payload.shootCount) || payload.shootCount < 0) {
+        report("error");
+        return;
+      }
+      report("success", payload.shootCount);
+    })
+    .catch(() => {
+      window.clearTimeout(timeout);
+      report("error");
+    });
+})();
+"#;
 
 const CONNECTION_ERROR_HTML: &str = r#"<!doctype html>
 <html lang="zh-CN">
@@ -123,13 +166,7 @@ fn open_external_url(url: &Url) {
     }
 }
 
-#[cfg(debug_assertions)]
-fn notification_test_on_minimize() -> bool {
-    std::env::var("BUIR_NOTIFICATION_TEST_TRIGGER").as_deref() == Ok("minimize")
-}
-
-#[cfg(debug_assertions)]
-fn send_notification_test(app: &tauri::AppHandle) {
+fn send_tomorrow_notification(app: &tauri::AppHandle, shoot_count: u32) {
     let notification = app.notification();
     let permission = match notification.permission_state() {
         Ok(tauri::plugin::PermissionState::Granted) => tauri::plugin::PermissionState::Granted,
@@ -159,11 +196,84 @@ fn send_notification_test(app: &tauri::AppHandle) {
         if let Err(error) = notification
             .builder()
             .title("BUIR Studio OS")
-            .body("桌面通知功能已启用")
+            .body(tomorrow_notification_body(shoot_count))
             .show()
         {
-            eprintln!("notification test failed: {error}");
+            eprintln!("tomorrow shoot notification failed: {error}");
         }
+    }
+}
+
+fn tomorrow_notification_body(shoot_count: u32) -> String {
+    format!("明日有 {shoot_count} 场拍摄")
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum SummaryResult {
+    Success(u32),
+    Unauthorized,
+    Failure,
+}
+
+fn is_summary_result_url(url: &Url) -> bool {
+    url.scheme() == "buir-summary" && url.host_str() == Some("result")
+}
+
+fn parse_summary_result(url: &Url) -> SummaryResult {
+    let mut state = None;
+    let mut shoot_count = None;
+
+    for (key, value) in url.query_pairs() {
+        match key.as_ref() {
+            "state" => state = Some(value.into_owned()),
+            "shootCount" => shoot_count = value.parse::<u32>().ok(),
+            _ => {}
+        }
+    }
+
+    match state.as_deref() {
+        Some("success") => shoot_count
+            .map(SummaryResult::Success)
+            .unwrap_or(SummaryResult::Failure),
+        Some("unauthorized") => SummaryResult::Unauthorized,
+        _ => SummaryResult::Failure,
+    }
+}
+
+fn handle_summary_result(app: &tauri::AppHandle, result: SummaryResult) {
+    if !SUMMARY_REQUEST_IN_FLIGHT.swap(false, Ordering::SeqCst) {
+        eprintln!("ignored unexpected tomorrow summary result");
+        return;
+    }
+
+    match result {
+        SummaryResult::Success(shoot_count) => {
+            SUMMARY_RESOLVED.store(true, Ordering::SeqCst);
+            if shoot_count > 0 && !TOMORROW_NOTIFICATION_SENT.swap(true, Ordering::SeqCst) {
+                send_tomorrow_notification(app, shoot_count);
+            }
+        }
+        SummaryResult::Unauthorized => {
+            eprintln!("tomorrow summary skipped: user is not authenticated or authorized");
+        }
+        SummaryResult::Failure => {
+            eprintln!("tomorrow summary request failed");
+        }
+    }
+}
+
+fn request_tomorrow_summary(window: &tauri::WebviewWindow) {
+    if SUMMARY_RESOLVED.load(Ordering::SeqCst)
+        || SUMMARY_REQUEST_IN_FLIGHT
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+    {
+        return;
+    }
+
+    if let Err(error) = window.eval(TOMORROW_SUMMARY_SCRIPT) {
+        SUMMARY_REQUEST_IN_FLIGHT.store(false, Ordering::SeqCst);
+        eprintln!("failed to start tomorrow summary request: {error}");
     }
 }
 
@@ -190,11 +300,15 @@ fn main() {
                 .ok_or("main window configuration is missing")?;
             window_config.url = initial_url();
 
-            let app_handle = app.handle().clone();
+            let navigation_app_handle = app.handle().clone();
+            let new_window_app_handle = app.handle().clone();
 
             WebviewWindowBuilder::from_config(app.handle(), &window_config)?
-                .on_navigation(|url| {
-                    if is_external_url(url) {
+                .on_navigation(move |url| {
+                    if is_summary_result_url(url) {
+                        handle_summary_result(&navigation_app_handle, parse_summary_result(url));
+                        false
+                    } else if is_external_url(url) {
                         open_external_url(url);
                         false
                     } else {
@@ -203,7 +317,7 @@ fn main() {
                 })
                 .on_new_window(move |url, _features| {
                     if is_internal_url(&url) {
-                        if let Some(window) = app_handle.get_webview_window("main") {
+                        if let Some(window) = new_window_app_handle.get_webview_window("main") {
                             let _ = window.navigate(url);
                         }
                     } else {
@@ -220,28 +334,45 @@ fn main() {
                     _ => true,
                 })
                 .on_page_load(|window, payload| {
-                    #[cfg(debug_assertions)]
-                    if !notification_test_on_minimize()
-                        && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
-                        && !NOTIFICATION_TEST_SENT.swap(true, Ordering::SeqCst)
+                    if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
+                        && is_internal_url(payload.url())
                     {
-                        send_notification_test(window.app_handle());
+                        request_tomorrow_summary(&window);
                     }
                 })
                 .build()?;
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            #[cfg(debug_assertions)]
-            if notification_test_on_minimize()
-                && matches!(event, tauri::WindowEvent::Resized(_))
-                && window.is_minimized().unwrap_or(false)
-                && !NOTIFICATION_TEST_SENT.swap(true, Ordering::SeqCst)
-            {
-                send_notification_test(window.app_handle());
-            }
-        })
         .run(tauri::generate_context!())
         .expect("error while running BUIR Studio OS");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_success_summary() {
+        let url = Url::parse("buir-summary://result?state=success&shootCount=2").unwrap();
+        assert_eq!(parse_summary_result(&url), SummaryResult::Success(2));
+    }
+
+    #[test]
+    fn rejects_invalid_success_summary() {
+        let url = Url::parse("buir-summary://result?state=success&shootCount=private").unwrap();
+        assert_eq!(parse_summary_result(&url), SummaryResult::Failure);
+    }
+
+    #[test]
+    fn parses_unauthorized_summary() {
+        let url = Url::parse("buir-summary://result?state=unauthorized").unwrap();
+        assert_eq!(parse_summary_result(&url), SummaryResult::Unauthorized);
+    }
+
+    #[test]
+    fn notification_contains_only_count_summary() {
+        assert_eq!(tomorrow_notification_body(1), "明日有 1 场拍摄");
+        assert_eq!(tomorrow_notification_body(3), "明日有 3 场拍摄");
+    }
 }
