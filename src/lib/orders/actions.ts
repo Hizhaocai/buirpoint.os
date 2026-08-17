@@ -33,7 +33,14 @@ export async function createOrder(_: OrderFormState, formData: FormData): Promis
   const { secondary_camera_ids: secondaryCameraIds, ...orderInput } = parsed.data;
   const supabase = await createClient();
   const { data: order, error } = await supabase.from("orders").insert({ ...orderInput, assigned_camera_id: assignedCameraId, created_by: user.id }).select("id").single();
-  if (error) return { error: "订单未能保存，请稍后重试。" };
+  if (error) {
+    console.error("order create failed", {
+      code: error.code,
+      message: error.message,
+      hint: error.hint,
+    });
+    return { error: "订单未能保存，请稍后重试。" };
+  }
   const assignmentError = await replaceOrderCameraAssignments(order.id, assignedCameraId, secondaryCameraIds);
   if (assignmentError) return { error: "订单已建立，但摄像人员分配未能保存。" };
   revalidateOrderSurfaces(order.id);
