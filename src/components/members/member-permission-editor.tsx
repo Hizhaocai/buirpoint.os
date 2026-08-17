@@ -10,6 +10,8 @@ function effectivePermissions(member: Member): Permissions {
   return Object.fromEntries((Object.keys(defaults) as Permission[]).map((permission) => [permission, hasPermission(member, permission)])) as Permissions;
 }
 
+const portfolioWritePermissions: Permission[] = ["portfolio_create", "portfolio_edit", "portfolio_publish", "portfolio_delete"];
+
 export function MemberPermissionEditor({ member }: { member: Member }) {
   const [name, setName] = useState(member.display_name ?? member.name ?? "");
   const [permissions, setPermissions] = useState<Permissions>(() => effectivePermissions(member));
@@ -17,7 +19,15 @@ export function MemberPermissionEditor({ member }: { member: Member }) {
   const [isPending, startTransition] = useTransition();
 
   function toggle(permission: Permission) {
-    setPermissions((current) => ({ ...current, [permission]: !current[permission] }));
+    setPermissions((current) => {
+      const enabled = !current[permission];
+      const next = { ...current, [permission]: enabled };
+      if (permission === "portfolio_view" && !enabled) {
+        portfolioWritePermissions.forEach((item) => { next[item] = false; });
+      }
+      if (portfolioWritePermissions.includes(permission) && enabled) next.portfolio_view = true;
+      return next;
+    });
   }
 
   function save(event: React.FormEvent<HTMLFormElement>) {
@@ -36,7 +46,7 @@ export function MemberPermissionEditor({ member }: { member: Member }) {
           <span className="font-medium">显示名称</span>
           <input value={name} onChange={(event) => setName(event.target.value)} placeholder={displayName(member)} maxLength={80} className="h-10 border border-[var(--border-strong)] bg-[var(--background)] px-3 text-sm outline-none transition-colors focus:border-[var(--primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--primary)_18%,transparent)]" />
         </label>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {permissionGroups.map((group) => (
             <fieldset key={group.label} className="grid content-start gap-2">
               <legend className="text-sm font-medium">{group.label}</legend>

@@ -7,5 +7,11 @@ services:
     ports: !override
       - "127.0.0.1:${KONG_HTTP_PORT}:8000/tcp"
 
+  # Keep the global ceiling aligned with the largest Portfolio video.
+  # Individual buckets and CMS validation retain their narrower limits.
+  storage:
+    environment:
+      FILE_SIZE_LIMIT: 209715200
+
   supavisor:
     ports: !reset []

@@ -180,7 +180,11 @@ function writeNextEnv(config) {
   if (existing && !existing.startsWith(localEnvMarker)) {
     throw new Error(".env.local already contains non-local configuration. Preserve it and use a clean worktree for local Supabase development.");
   }
-  writeFileSync(localEnvPath, `${localEnvMarker}\nNEXT_PUBLIC_SUPABASE_URL=${config.API_URL}\nNEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${config.ANON_KEY}\n`, "utf8");
+  writeFileSync(
+    localEnvPath,
+    `${localEnvMarker}\nNEXT_PUBLIC_SUPABASE_URL=${config.API_URL}\nNEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${config.ANON_KEY}\nSUPABASE_SERVICE_ROLE_KEY=${config.SERVICE_ROLE_KEY}\n`,
+    "utf8",
+  );
 }
 
 runSupabase(["start"], { capture: true });

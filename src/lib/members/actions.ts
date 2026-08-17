@@ -96,8 +96,11 @@ export async function updateMemberProfile(memberId: string, displayName: string,
   if ("error" in target) return target;
   const normalizedName = displayName.trim().slice(0, 80) || null;
   const nextPermissions: Permissions = {};
-  for (const key of ["orders_view", "orders_create", "orders_edit", "orders_delete", "attachments_manage", "members_manage"] as const) {
+  for (const key of ["orders_view", "orders_create", "orders_edit", "orders_delete", "attachments_manage", "members_manage", "portfolio_view", "portfolio_create", "portfolio_edit", "portfolio_publish", "portfolio_delete"] as const) {
     if (typeof permissions[key] === "boolean") nextPermissions[key] = permissions[key];
+  }
+  if (nextPermissions.portfolio_create || nextPermissions.portfolio_edit || nextPermissions.portfolio_publish || nextPermissions.portfolio_delete) {
+    nextPermissions.portfolio_view = true;
   }
   const protectedOwner = await ensureAnotherManagingOwner(target.data, target.data.role, target.data.status, nextPermissions);
   if (protectedOwner) return protectedOwner;

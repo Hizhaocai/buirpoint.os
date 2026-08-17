@@ -4,9 +4,20 @@ import { getSupabaseEnv, isSupabaseConfigured } from "@/lib/supabase/config";
 
 const publicPaths = ["/login"];
 const desktopApiPrefix = "/api/desktop";
+const miniappApiPrefix = "/api/miniapp";
 
 function isDesktopApiRequest(pathname: string) {
   return pathname === desktopApiPrefix || pathname.startsWith(`${desktopApiPrefix}/`);
+}
+
+function isPublicRequest(pathname: string) {
+  return publicPaths.includes(pathname)
+    || pathname === miniappApiPrefix
+    || pathname.startsWith(`${miniappApiPrefix}/`);
+}
+
+function isMiniappApiRequest(pathname: string) {
+  return pathname === miniappApiPrefix || pathname.startsWith(`${miniappApiPrefix}/`);
 }
 
 export async function updateSession(request: NextRequest) {
@@ -14,8 +25,12 @@ export async function updateSession(request: NextRequest) {
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
   let response = NextResponse.next({ request: { headers: requestHeaders } });
   const { pathname } = request.nextUrl;
-  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
+  const isPublicPath = isPublicRequest(pathname);
   const isDesktopApi = isDesktopApiRequest(pathname);
+
+  // Public API requests do not need a user session. Skipping the Auth lookup
+  // keeps this read-only path independent from the Dashboard session flow.
+  if (isMiniappApiRequest(pathname)) return response;
 
   if (!isSupabaseConfigured()) {
     if (isDesktopApi) {

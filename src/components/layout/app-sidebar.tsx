@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDots, Files, GearSix, House, SignOut, UsersThree } from "@phosphor-icons/react/dist/ssr";
+import { CalendarDots, Files, GearSix, House, ImagesSquare, SignOut, UsersThree } from "@phosphor-icons/react/dist/ssr";
 import { displayName, hasPermission } from "@/lib/auth/permission-model";
 import { roleLabels } from "@/lib/auth/roles";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ const navigation = [
   { href: "/", label: "工作台", icon: House },
   { href: "/orders", label: "订单", icon: Files },
   { href: "/schedule", label: "档期", icon: CalendarDots },
+  { href: "/portfolio", label: "作品管理", icon: ImagesSquare, permission: "portfolio_view" as const },
   { href: "/members", label: "成员管理", icon: UsersThree, permission: "members_manage" as const },
   { href: "/settings", label: "设置", icon: GearSix },
 ];

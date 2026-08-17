@@ -7,7 +7,11 @@ export type OrderEditingStatus = "pending" | "editing" | "completed";
 export type OrderDeliveryStatus = "pending" | "delivered";
 export type OrderSourceType = "wedding_company" | "direct_customer";
 export type OrderCameraRole = "primary" | "secondary";
-export type Permission = "orders_view" | "orders_create" | "orders_edit" | "orders_delete" | "attachments_manage" | "members_manage";
+export type PortfolioWorkStatus = "draft" | "published" | "archived";
+export type PortfolioCategoryStatus = "active" | "inactive";
+export type PortfolioAboutContentType = "story" | "concept" | "process" | "faq";
+export type PortfolioContentType = "text" | "image" | "video" | "embed" | PortfolioAboutContentType;
+export type Permission = "orders_view" | "orders_create" | "orders_edit" | "orders_delete" | "attachments_manage" | "members_manage" | "portfolio_view" | "portfolio_create" | "portfolio_edit" | "portfolio_publish" | "portfolio_delete";
 export type Permissions = Partial<Record<Permission, boolean>>;
 
 export interface Profile {
@@ -102,3 +106,63 @@ export interface OrderLog {
   created_at: string;
   actor: Pick<Profile, "id" | "name" | "email"> | null;
 }
+
+export interface PortfolioCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  sort_order: number;
+  status: PortfolioCategoryStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortfolioWork {
+  id: string;
+  category_id: string | null;
+  title: string;
+  slug: string;
+  summary: string | null;
+  cover_path: string | null;
+  cover_url: string | null;
+  video_url: string | null;
+  status: PortfolioWorkStatus;
+  featured: boolean;
+  sort_order: number;
+  published_at: string | null;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortfolioCredit {
+  id: string;
+  work_id: string;
+  profile_id: string | null;
+  display_name: string;
+  credit_role: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortfolioContent {
+  id: string;
+  work_id: string | null;
+  content_type: PortfolioContentType;
+  title: string | null;
+  subtitle: string | null;
+  content: Record<string, unknown>;
+  image_url: string | null;
+  published: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PortfolioAboutContent = Omit<PortfolioContent, "content_type" | "title"> & {
+  content_type: PortfolioAboutContentType;
+  title: string;
+};

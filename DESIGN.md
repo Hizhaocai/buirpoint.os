@@ -22,6 +22,21 @@ The selected visual concept is **精品创意工作室风**. It uses quiet compo
 - Order source, shoot location, and production handoff remain attributes of an order. They never create CRM, partner, project, or production-board modules.
 - Out-of-scope modules such as people management, equipment, venues, and assets must not appear in the navigation or dashboard.
 
+## Portfolio Management
+
+- Portfolio is the studio's internal works publishing archive, not an asset library or KPI-driven CMS.
+- The works list follows the Studio OS archive language: a calm, scannable record structure separated by fine rules rather than a grid of promotional cards.
+- The primary lifecycle is explicit and sequential: create or edit a draft, publish or withdraw it, archive or restore it, then permanently delete it only through a clearly destructive action.
+- The Portfolio navigation entry appears only for users with `portfolio_view`; hiding navigation never replaces server-side authorization.
+- Every status pairs a written label with its visual treatment. Draft, published, and archived states must never be communicated by color alone.
+- Desktop and mobile reuse the existing Dashboard Shell, including its side rail, top bar, and drawer behavior; Portfolio does not introduce a separate application frame.
+- Portfolio cover and video uploads live in the dedicated `portfolio-media` bucket. The edit page presents them as two quiet archive rows with explicit empty, uploading, preview, error, and removal states; they never become a general asset library.
+- Cover and video previews preserve the existing paper-like hierarchy. Video uses native controls without autoplay, and media actions remain subordinate to the work record.
+- About content management is a fixed four-item editorial list inside Portfolio: story, concept, process, and FAQ. It uses plain-text editing and explicit published/hidden labels; it is not a rich-text builder or a new navigation system.
+- Editing content and changing visibility remain separate actions. The interface preserves the fixed content taxonomy instead of exposing create, reorder, or delete controls.
+- Portfolio categories are maintained as an ordered archive list with explicit enabled/disabled labels. Disabling a category preserves existing work relationships; categories with related works cannot be deleted.
+- Home featured management reads only published works. Featured membership and numeric display order are explicit publishing operations, and withdrawing a work automatically removes it from the featured set.
+
 ## Layout
 
 - Desktop: a quiet narrow side rail and a generous page canvas. Pages use an editorial grid with one dominant work region, fine dividers, and secondary information placed in a clearly subordinate rail or sequence.
